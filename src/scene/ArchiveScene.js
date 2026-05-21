@@ -4,6 +4,7 @@ import { createBookshelf, updateBookshelves } from '../models/Bookshelf.js';
 import { createEternalFlame, updateEternalFlame } from '../models/EternalFlame.js';
 import { createWindows } from '../models/Windows.js';
 import { createPet, updatePet, interactWithPet } from '../models/Pet.js';
+import { createEvolvedPet } from '../models/evolved/index.js';
 import { createStardust, updateStardust } from './Particles.js';
 import { createFloatingLights, updateFloatingLights } from './FloatingLights.js';
 import { createLighting, updateLighting } from './Lighting.js';
@@ -200,28 +201,14 @@ export class ArchiveScene {
     // 移除旧宠物
     this.scene.remove(this.pet);
 
-    // 创建新宠物（进化形态 = 阶段1）
-    this.pet = createPet(1);
+    // 创建进化形态 3D 模型
+    if (evolutionType === 'owl' || evolutionType === 'cat' || evolutionType === 'unicorn') {
+      this.pet = createEvolvedPet(evolutionType);
+    } else {
+      this.pet = createPet(1);
+    }
     this.pet.position.set(0, 0.2, 0);
     this.scene.add(this.pet);
-
-    // 根据进化类型调整颜色
-    const colors = {
-      owl: { color: 0x4A6FA5, emissive: 0x2A4F85 },
-      cat: { color: 0xD4A0FF, emissive: 0xB470E0 },
-      unicorn: { color: 0xFFB7C5, emissive: 0xFF87A8 },
-    };
-    const c = colors[evolutionType];
-    if (c) {
-      this.pet.children.forEach(child => {
-        if (child.isMesh && child.material) {
-          if (child.material.color) child.material.color.setHex(c.color);
-          if (child.material.emissive) {
-            child.material.emissive.setHex(c.emissive);
-          }
-        }
-      });
-    }
 
     this._showPrompt(`🌟 小星完成了进化！`);
   }

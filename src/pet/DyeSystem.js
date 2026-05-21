@@ -99,7 +99,7 @@ export class DyeSystem {
     const emissive = new THREE.Color(palette.emissive);
 
     petGroup.children.forEach(child => {
-      if (child.isMesh && child.material) {
+      if (child.isMesh && child.material && child.userData.dyeable !== false) {
         if (Array.isArray(child.material)) {
           child.material.forEach(mat => this._applyColor(mat, color, emissive));
         } else {
