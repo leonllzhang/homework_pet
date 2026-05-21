@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>奇迹档案馆 — The Archive of Miracles</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #1B1F3B; }
+    #app { width: 100%; height: 100%; }
+    canvas { display: block; }
+
+    /* ===== HUD ===== */
+    #hud {
+      position: fixed; top: 0; left: 0; width: 100%;
+      pointer-events: none; z-index: 10;
+      font-family: 'Georgia', serif;
+      color: #FFE4B5;
+    }
+    #resource-bar {
+      display: flex; justify-content: center; gap: 20px;
+      padding: 14px 20px;
+      background: linear-gradient(180deg, rgba(27,31,59,0.85) 0%, transparent 100%);
+    }
+    .resource-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 13px; text-shadow: 0 0 8px rgba(255,200,100,0.2);
+    }
+    .resource-icon {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,215,0,0.3);
+    }
+    .resource-icon.dust { background: radial-gradient(circle, #FFE4B5, #D4A057); }
+    .resource-icon.rune { background: radial-gradient(circle, #7EB8E8, #4A6FA5); }
+    .resource-icon.leaf { background: radial-gradient(circle, #A8D8A8, #6BA86B); }
+    .resource-icon.ink  { background: radial-gradient(circle, #FFB7C5, #D4879A); }
+    .resource-icon.fruit { background: radial-gradient(circle, #F0C080, #D09040); }
+
+    /* ===== Scan Button ===== */
+    #scan-btn {
+      position: fixed; bottom: 32px; right: 32px;
+      z-index: 20; cursor: pointer; pointer-events: auto;
+      width: 64px; height: 64px; border-radius: 50%;
+      border: 2px solid rgba(255,215,0,0.6);
+      background: radial-gradient(circle at 35% 35%, #3A2A6A, #1B1F3B);
+      box-shadow: 0 0 30px rgba(255,215,0,0.2), inset 0 0 20px rgba(255,215,0,0.05);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s ease; font-size: 28px;
+    }
+    #scan-btn:hover { transform: scale(1.1); box-shadow: 0 0 40px rgba(255,215,0,0.4); }
+    #scan-btn:active { transform: scale(0.95); }
+    #scan-btn-label {
+      position: fixed; bottom: 100px; right: 28px;
+      z-index: 20; pointer-events: none;
+      font-family: 'Georgia', serif; font-size: 11px;
+      color: rgba(255,215,0,0.5); letter-spacing: 1px;
+    }
+
+    /* ===== Parkour Button ===== */
+    #pk-btn {
+      position: fixed; bottom: 32px; right: 110px;
+      z-index: 20; cursor: pointer; pointer-events: auto;
+      width: 56px; height: 56px; border-radius: 50%;
+      border: 2px solid rgba(255,215,0,0.4);
+      background: radial-gradient(circle at 35% 35%, #2A1A4A, #1B1F3B);
+      box-shadow: 0 0 20px rgba(255,215,0,0.1), inset 0 0 15px rgba(180,140,255,0.05);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s ease; font-size: 24px;
+    }
+    #pk-btn:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(180,140,255,0.3); }
+
+    /* ===== Achievement Notification ===== */
+    #ach-notify {
+      position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+      z-index: 60; display: none; align-items: center; gap: 10px;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, rgba(58,42,106,0.95), rgba(27,31,59,0.95));
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 12px;
+      font-family: 'Georgia', serif;
+      box-shadow: 0 0 40px rgba(255,215,0,0.15);
+      pointer-events: none;
+    }
+    #ach-notify.active { display: flex; }
+    .ach-notify-icon { font-size: 28px; }
+    .ach-notify-name { color: #FFD700; font-size: 14px; letter-spacing: 1px; }
+    .ach-notify-desc { color: rgba(255,255,255,0.6); font-size: 11px; }
+
+    /* ===== Achievement Panel ===== */
+    #ach-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #ach-panel.active { display: flex; }
+    #ach-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.96), rgba(27,31,59,0.96));
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 20px; padding: 24px; max-width: 400px; width: 92%;
+      max-height: 80vh; overflow-y: auto;
+      box-shadow: 0 0 60px rgba(255,215,0,0.05);
+    }
+    #ach-card h2 { color: #FFD700; text-align: center; font-size: 20px; margin-bottom: 4px; }
+    #ach-count { text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-bottom: 16px; }
+    #ach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .ach-item {
+      padding: 10px; border-radius: 10px; text-align: center;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+    }
+    .ach-item.unlocked { border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.04); }
+    .ach-item.locked { opacity: 0.35; }
+    .ach-item-icon { font-size: 24px; }
+    .ach-item-name { color: #FFD700; font-size: 11px; margin: 2px 0; }
+    .ach-item-desc { color: rgba(255,255,255,0.4); font-size: 9px; }
+    .ach-item-status { font-size: 9px; margin-top: 2px; }
+    .ach-item-status.done { color: #00FF88; }
+    .ach-item-status.locked { color: rgba(255,255,255,0.2); }
+
+    /* ===== Achievement Button in Scene ===== */
+    #ach-btn {
+      position: fixed; bottom: 32px; left: 110px;
+      z-index: 20; cursor: pointer; pointer-events: auto;
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 1px solid rgba(255,215,0,0.2);
+      background: radial-gradient(circle at 35% 35%, #2A2A4A, #1B1F3B);
+      box-shadow: 0 0 15px rgba(255,215,0,0.05);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s ease; font-size: 20px;
+    }
+    #ach-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(255,215,0,0.15); border-color: rgba(255,215,0,0.4); }
+    #pk-btn:active { transform: scale(0.95); }
+    #pk-btn-label {
+      position: fixed; bottom: 92px; right: 105px;
+      z-index: 20; pointer-events: none;
+      font-family: 'Georgia', serif; font-size: 11px;
+      color: rgba(180,140,255,0.4); letter-spacing: 1px;
+    }
+
+    /* ===== Camera Overlay ===== */
+    #camera-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      display: none; flex-direction: column;
+      background: #000;
+      font-family: 'Georgia', serif;
+    }
+    #camera-overlay.active { display: flex; }
+    #camera-overlay video {
+      flex: 1; width: 100%; object-fit: cover;
+    }
+    /* 取景框装饰 */
+    #viewfinder {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    #viewfinder::before, #viewfinder::after {
+      content: ''; position: absolute;
+    }
+    /* 四角装饰 */
+    #viewfinder .corner {
+      position: absolute; width: 40px; height: 40px;
+      border-color: rgba(255,215,0,0.6);
+    }
+    #viewfinder .corner-tl { top: 40px; left: 30px; border-top: 2px solid; border-left: 2px solid; }
+    #viewfinder .corner-tr { top: 40px; right: 30px; border-top: 2px solid; border-right: 2px solid; }
+    #viewfinder .corner-bl { bottom: 100px; left: 30px; border-bottom: 2px solid; border-left: 2px solid; }
+    #viewfinder .corner-br { bottom: 100px; right: 30px; border-bottom: 2px solid; border-right: 2px solid; }
+
+    #camera-hint {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.7); font-size: 14px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      letter-spacing: 2px;
+    }
+    #capture-btn {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      width: 72px; height: 72px; border-radius: 50%;
+      border: 4px solid rgba(255,215,0,0.8); cursor: pointer;
+      background: radial-gradient(circle, rgba(255,255,255,0.3), transparent);
+      box-shadow: 0 0 30px rgba(255,215,0,0.2);
+      transition: all 0.2s;
+    }
+    #capture-btn:active { transform: translateX(-50%) scale(0.9); }
+    #capture-btn-inner {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #fff; margin: 4px auto;
+      transition: all 0.2s;
+    }
+    #capture-btn:active #capture-btn-inner { background: #FFD700; }
+    #camera-close {
+      position: absolute; top: 16px; right: 16px;
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.4); cursor: pointer;
+      background: rgba(0,0,0,0.4); color: #fff; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ===== Scan Pet Avatar ===== */
+    #scan-pet {
+      position: absolute; bottom: 120px; right: 20px;
+      display: flex; align-items: flex-end; gap: 8px;
+      pointer-events: none; z-index: 52;
+      animation: pet-float 2s ease-in-out infinite;
+    }
+    @keyframes pet-float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    #scan-pet-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(255,215,0,0.2), rgba(58,42,106,0.8));
+      border: 2px solid rgba(255,215,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; box-shadow: 0 0 20px rgba(255,215,0,0.2);
+    }
+    #scan-pet-bubble {
+      background: rgba(27,31,59,0.85);
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 12px 12px 12px 2px;
+      padding: 6px 12px; font-size: 12px;
+      color: rgba(255,255,255,0.8);
+      font-family: 'Georgia', serif;
+      max-width: 160px; line-height: 1.4;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    #scan-pet-bubble::before {
+      content: ''; position: absolute;
+      bottom: 6px; right: -5px;
+      width: 10px; height: 10px;
+      background: rgba(27,31,59,0.85);
+      border-right: 1px solid rgba(255,215,0,0.2);
+      border-bottom: 1px solid rgba(255,215,0,0.2);
+      transform: rotate(-45deg);
+    }
+    #scan-pet-bubble.loading::after {
+      content: '...'; animation: bubble-dots 1s steps(4) infinite;
+    }
+    @keyframes bubble-dots {
+      0% { content: '.'; }
+      25% { content: '..'; }
+      50% { content: '...'; }
+      75% { content: ''; }
+    }
+
+    /* ===== Scan Processing ===== */
+    #scan-processing {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.9);
+      font-family: 'Georgia', serif;
+      flex-direction: column; gap: 20px;
+    }
+    #scan-processing.active { display: flex; }
+    #scan-processing .magic-ring {
+      width: 80px; height: 80px; border-radius: 50%;
+      border: 3px solid rgba(255,215,0,0.2);
+      border-top-color: #FFD700;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #scan-processing p {
+      color: rgba(255,215,0,0.8); font-size: 16px;
+      letter-spacing: 3px; text-shadow: 0 0 20px rgba(255,215,0,0.3);
+    }
+    #scan-processing-pet {
+      font-size: 48px; animation: pet-processing 1.5s ease-in-out infinite;
+    }
+    @keyframes pet-processing {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(1.1) rotate(-5deg); }
+      75% { transform: scale(1.1) rotate(5deg); }
+    }
+
+    /* ===== Subject / Grade Panel ===== */
+    #grade-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.88);
+      font-family: 'Georgia', serif;
+    }
+    #grade-panel.active { display: flex; }
+
+    #grade-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.95), rgba(27,31,59,0.95));
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 20px; padding: 32px; max-width: 380px; width: 90%;
+      box-shadow: 0 0 60px rgba(255,215,0,0.1);
+    }
+    #grade-card h2 {
+      color: #FFD700; font-size: 20px; text-align: center;
+      margin-bottom: 6px; letter-spacing: 2px;
+    }
+    #grade-card .subtitle {
+      color: rgba(255,215,0,0.5); font-size: 12px;
+      text-align: center; margin-bottom: 24px; letter-spacing: 1px;
+    }
+
+    .subject-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin-bottom: 20px;
+    }
+    .subject-btn {
+      padding: 14px; border-radius: 12px;
+      border: 1px solid rgba(255,215,0,0.15);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.6); cursor: pointer;
+      font-family: 'Georgia', serif; font-size: 14px;
+      text-align: center; transition: all 0.2s;
+    }
+    .subject-btn .emoji { font-size: 24px; display: block; margin-bottom: 4px; }
+    .subject-btn.selected {
+      border-color: #FFD700; background: rgba(255,215,0,0.12);
+      color: #FFD700; box-shadow: 0 0 20px rgba(255,215,0,0.1);
+    }
+    .subject-btn:hover { border-color: rgba(255,215,0,0.4); }
+
+    .grade-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .grade-row label {
+      color: rgba(255,255,255,0.7); font-size: 14px;
+    }
+    .grade-control {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .grade-control button {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 1px solid rgba(255,215,0,0.3); cursor: pointer;
+      background: rgba(255,215,0,0.08); color: #FFD700;
+      font-size: 18px; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .grade-control button:hover { background: rgba(255,215,0,0.2); }
+    .grade-control span {
+      color: #fff; font-size: 18px; min-width: 32px; text-align: center;
+    }
+
+    #grade-confirm {
+      width: 100%; padding: 14px; margin-top: 8px;
+      border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #FFD700, #D4A057);
+      color: #1B1F3B; font-family: 'Georgia', serif; font-size: 16px;
+      font-weight: bold; cursor: pointer; letter-spacing: 2px;
+      transition: all 0.2s;
+    }
+    #grade-confirm:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(255,215,0,0.3); }
+
+    /* ===== Result Panel ===== */
+    #result-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #result-panel.active { display: flex; }
+
+    #result-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.95), rgba(27,31,59,0.95));
+      border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 20px; padding: 32px; max-width: 360px; width: 90%;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(255,215,0,0.1);
+    }
+    #result-card .big-icon { font-size: 48px; margin-bottom: 8px; }
+    #result-card h2 { color: #FFD700; font-size: 22px; margin-bottom: 4px; }
+    #result-card .result-sub {
+      color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 16px;
+    }
+    #result-card .score { font-size: 36px; color: #FFD700; margin-bottom: 4px; }
+    #result-card .score-label { color: rgba(255,255,255,0.4); font-size: 12px; margin-bottom: 16px; }
+
+    .reward-list { margin: 16px 0; text-align: left; }
+    .reward-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-radius: 8px;
+      background: rgba(255,215,0,0.06);
+      margin-bottom: 6px;
+    }
+    .reward-item .r-name { color: rgba(255,255,255,0.8); font-size: 13px; }
+    .reward-item .r-val { color: #FFD700; font-size: 15px; font-weight: bold; }
+
+    #result-close {
+      padding: 12px 32px; border: 1px solid rgba(255,215,0,0.3);
+      border-radius: 25px; background: transparent;
+      color: #FFD700; font-family: 'Georgia', serif; font-size: 14px;
+      cursor: pointer; letter-spacing: 1px; margin-top: 8px;
+      transition: all 0.2s;
+    }
+    #result-close:hover { background: rgba(255,215,0,0.1); }
+
+    /* ===== Resource Rain Canvas ===== */
+    #rain-canvas {
+      position: fixed; inset: 0; z-index: 30;
+      pointer-events: none;
+    }
+
+    #scene-title {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 10;
+      font-family: 'Georgia', serif;
+      font-size: 12px;
+      color: rgba(255,215,0,0.2);
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    #interact-prompt {
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+      z-index: 10; pointer-events: none;
+      font-family: 'Georgia', serif;
+      font-size: 14px; color: #FFD700;
+      opacity: 0; transition: opacity 0.3s;
+      text-shadow: 0 0 20px rgba(255,215,0,0.4);
+    }
+    #interact-prompt.visible { opacity: 1; }
+
+    /* ===== Loading ===== */
+    #loading {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #1B1F3B;
+      font-family: 'Georgia', serif;
+      color: #FFD700;
+      transition: opacity 1s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    #loading-spinner {
+      width: 40px; height: 40px; margin-bottom: 16px;
+      border: 2px solid rgba(255,215,0,0.2);
+      border-top-color: #FFD700;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    /* ===== Parkour HUD ===== */
+    #pk-hud {
+      position: fixed; top: 0; left: 0; width: 100%;
+      z-index: 40; display: none;
+      font-family: 'Georgia', serif;
+      pointer-events: none;
+    }
+    #pk-hud.active { display: block; }
+
+    #pk-hud-top {
+      display: flex; justify-content: center; gap: 32px;
+      padding: 12px 20px;
+      background: linear-gradient(180deg, rgba(10,10,30,0.7) 0%, transparent 100%);
+    }
+    .pk-stat { text-align: center; }
+    .pk-label { display: block; font-size: 10px; color: rgba(255,255,255,0.4); letter-spacing: 1px; }
+    .pk-stat span:last-child { font-size: 20px; color: #FFD700; text-shadow: 0 0 10px rgba(255,215,0,0.3); }
+
+    #pk-shield-bar {
+      width: 160px; height: 4px; margin: 6px auto 0;
+      background: rgba(255,255,255,0.1); border-radius: 2px;
+      overflow: hidden;
+    }
+    #pk-shield-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #FF6B6B, #FFD700, #00FF88);
+      border-radius: 2px; transition: width 0.2s;
+    }
+
+    #pk-controls-hint {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.2); font-size: 11px;
+      letter-spacing: 1px; text-align: center;
+    }
+
+    #pk-floating {
+      position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%);
+      z-index: 45; pointer-events: none;
+      font-family: 'Georgia', serif; font-size: 28px;
+      font-weight: bold; text-shadow: 0 0 30px currentColor;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    #pk-floating.visible { opacity: 1; }
+
+    /* ===== Parkour Game Over ===== */
+    #pk-gameover {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(10,10,30,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #pk-gameover.active { display: flex; }
+
+    #pk-go-card {
+      background: linear-gradient(145deg, rgba(40,30,80,0.95), rgba(20,15,50,0.95));
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 20px; padding: 28px; max-width: 340px; width: 90%;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(255,215,0,0.05);
+    }
+    #pk-go-card .pk-go-icon { font-size: 40px; margin-bottom: 4px; }
+    #pk-go-card h2 { color: #FFD700; font-size: 18px; margin-bottom: 16px; }
+    .pk-go-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .pk-go-grid > div {
+      padding: 8px; border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+    }
+    .pk-go-label { display: block; font-size: 11px; color: rgba(255,255,255,0.4); }
+    .pk-go-val { font-size: 20px; color: #FFD700; }
+    .pk-go-val.gold { color: #FFD700; text-shadow: 0 0 10px rgba(255,215,0,0.3); }
+
+    #pk-restart, #pk-exit {
+      width: 100%; padding: 12px; border-radius: 25px;
+      font-family: 'Georgia', serif; font-size: 14px;
+      cursor: pointer; letter-spacing: 1px; margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    #pk-restart {
+      border: none; background: linear-gradient(135deg, #FFD700, #D4A057);
+      color: #1B1F3B; font-weight: bold;
+    }
+    #pk-restart:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(255,215,0,0.3); }
+    #pk-exit {
+      border: 1px solid rgba(255,215,0,0.2);
+      background: transparent; color: rgba(255,215,0,0.7);
+    }
+    #pk-exit:hover { background: rgba(255,215,0,0.05); }
+
+    /* ===== Pet Care Panel ===== */
+    #pet-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #pet-panel.active { display: flex; }
+    #pet-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.96), rgba(27,31,59,0.96));
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 20px; padding: 24px; max-width: 360px; width: 92%;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 0 60px rgba(255,215,0,0.05);
+    }
+    #pet-face { font-size: 44px; text-align: center; margin-bottom: 2px; }
+    #pet-card h2 { color: #FFD700; text-align: center; font-size: 20px; margin-bottom: 2px; }
+    .pet-type { text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-bottom: 16px; letter-spacing: 2px; }
+    .pet-stats { margin-bottom: 12px; }
+    .pet-stat-row { margin-bottom: 10px; }
+    .pet-stat-label { font-size: 12px; color: rgba(255,255,255,0.6); }
+    .pet-stat-val { float: right; font-size: 12px; color: #FFD700; }
+    .pet-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+    .pet-bar > div { height: 100%; border-radius: 2px; transition: width 0.5s; }
+    #pet-mood-bar { background: linear-gradient(90deg, #FFD700, #FFE4B5); }
+    #pet-sat-bar { background: linear-gradient(90deg, #FFB7C5, #FFD700); }
+    #pet-bond-bar { background: linear-gradient(90deg, #D4A0FF, #FFD700); }
+    #pet-evo-bar { background: linear-gradient(90deg, #4A6FA5, #FFD700); }
+
+    .pet-actions { display: flex; gap: 8px; margin-bottom: 16px; }
+    .pet-btn {
+      flex: 1; padding: 10px; border-radius: 12px;
+      border: 1px solid rgba(255,215,0,0.15);
+      background: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,0.8); cursor: pointer;
+      font-family: 'Georgia', serif; font-size: 13px;
+      text-align: center; transition: all 0.2s;
+    }
+    .pet-btn:hover { border-color: #FFD700; background: rgba(255,215,0,0.08); }
+    .pet-btn-icon { display: block; font-size: 20px; margin-bottom: 2px; }
+    .pet-btn small { color: #FFD700; font-size: 11px; }
+
+    .pet-section-title { color: rgba(255,215,0,0.6); font-size: 12px; text-align: center; margin-bottom: 8px; letter-spacing: 1px; }
+    #pet-evo-options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .pet-evo-card {
+      padding: 10px; border-radius: 10px; text-align: center;
+      border: 1px solid rgba(255,215,0,0.1);
+      background: rgba(255,255,255,0.03);
+    }
+    .pet-evo-card.locked { opacity: 0.4; }
+    .evo-icon { font-size: 24px; }
+    .evo-name { color: #FFD700; font-size: 11px; margin: 2px 0; }
+    .evo-desc { color: rgba(255,255,255,0.4); font-size: 9px; }
+    .evo-req { color: rgba(255,255,255,0.3); font-size: 9px; margin-top: 2px; }
+    .evo-btn {
+      padding: 4px 12px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #FFD700, #D4A057);
+      color: #1B1F3B; font-size: 11px; cursor: pointer; font-family: 'Georgia', serif;
+      margin-top: 4px;
+    }
+    .pet-evo-locked { text-align: center; color: rgba(255,255,255,0.4); font-size: 13px; padding: 10px; }
+
+    .pet-evolved-badge { text-align: center; color: #FFD700; font-size: 16px; padding: 10px; margin-bottom: 8px; }
+    .pet-close-btn {
+      width: 100%; padding: 10px; border: 1px solid rgba(255,215,0,0.15);
+      border-radius: 25px; background: transparent;
+      color: rgba(255,215,0,0.6); font-family: 'Georgia', serif;
+      font-size: 13px; cursor: pointer; letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    .pet-close-btn:hover { background: rgba(255,215,0,0.05); }
+
+    /* ===== Dye Panel ===== */
+    #dye-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #dye-panel.active { display: flex; }
+    #dye-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.96), rgba(27,31,59,0.96));
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 20px; padding: 24px; max-width: 380px; width: 92%;
+      box-shadow: 0 0 60px rgba(255,215,0,0.05);
+    }
+    #dye-card h2 { color: #FFD700; text-align: center; font-size: 20px; }
+    .dye-subtitle { text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-bottom: 12px; }
+    .dye-ink-display { text-align: center; font-size: 18px; color: #FFD700; margin-bottom: 16px; }
+    #dye-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .dye-swatch {
+      padding: 10px; border-radius: 12px; text-align: center; cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+      transition: all 0.2s;
+    }
+    .dye-swatch:hover { border-color: rgba(255,215,0,0.4); background: rgba(255,255,255,0.06); }
+    .dye-swatch-color { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 6px; }
+    .dye-swatch-name { color: rgba(255,255,255,0.8); font-size: 12px; }
+    .dye-swatch-cost { color: rgba(255,215,0,0.4); font-size: 10px; }
+
+    /* ===== Debate Button ===== */
+    #debate-btn {
+      position: fixed; bottom: 96px; left: 110px;
+      z-index: 20; cursor: pointer; pointer-events: auto;
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 1px solid rgba(255,215,0,0.2);
+      background: radial-gradient(circle at 35% 35%, #2A2A4A, #1B1F3B);
+      box-shadow: 0 0 15px rgba(255,215,0,0.05);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s ease; font-size: 20px;
+    }
+    #debate-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(180,140,255,0.15); border-color: rgba(255,215,0,0.4); }
+    #debate-btn.hidden { display: none; }
+
+    /* ===== Debate Panel ===== */
+    #debate-panel {
+      position: fixed; inset: 0; z-index: 55;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(27,31,59,0.85);
+      font-family: 'Georgia', serif;
+    }
+    #debate-panel.active { display: flex; }
+    #debate-card {
+      background: linear-gradient(145deg, rgba(58,42,106,0.96), rgba(27,31,59,0.96));
+      border: 1px solid rgba(255,215,0,0.2);
+      border-radius: 20px; padding: 24px; max-width: 400px; width: 92%;
+      box-shadow: 0 0 60px rgba(255,215,0,0.05);
+    }
+    #debate-card h2 { color: #FFD700; text-align: center; font-size: 20px; margin-bottom: 2px; }
+    .debate-subtitle { text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; margin-bottom: 16px; letter-spacing: 1px; }
+    #debate-question {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px; padding: 16px; margin-bottom: 16px;
+      color: rgba(255,255,255,0.9); font-size: 15px; line-height: 1.6;
+      text-align: center; border: 1px solid rgba(255,215,0,0.1);
+    }
+    #debate-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .debate-opt {
+      padding: 12px 16px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.8); cursor: pointer;
+      font-family: 'Georgia', serif; font-size: 14px;
+      text-align: left; transition: all 0.2s;
+    }
+    .debate-opt:hover { border-color: rgba(255,215,0,0.4); background: rgba(255,255,255,0.06); }
+    .debate-opt:disabled { cursor: default; opacity: 0.5; }
+    .debate-opt.selected-correct { border-color: #00FF88; background: rgba(0,255,136,0.1); color: #00FF88; }
+    .debate-opt.selected-wrong { border-color: #FF6B6B; background: rgba(255,107,107,0.1); color: #FF6B6B; }
+    .debate-opt.highlight-correct { border-color: #00FF88; background: rgba(0,255,136,0.05); }
+
+    #debate-feedback {
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px; padding: 16px; margin-bottom: 16px;
+      text-align: center;
+    }
+    #debate-feedback-text { color: rgba(255,255,255,0.8); font-size: 14px; margin-bottom: 8px; }
+    #debate-rewards { text-align: center; }
+    .debate-reward { color: #FFD700; font-size: 13px; margin: 2px 0; }
+    #debate-card .pet-close-btn { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div id="loading-spinner"></div>
+    <span>奇迹档案馆加载中...</span>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="resource-bar">
+      <div class="resource-item">
+        <div class="resource-icon dust"></div>
+        <span id="res-dust">0</span>
+      </div>
+      <div class="resource-item">
+        <div class="resource-icon rune"></div>
+        <span id="res-rune">0</span>
+      </div>
+      <div class="resource-item">
+        <div class="resource-icon leaf"></div>
+        <span id="res-leaf">0</span>
+      </div>
+      <div class="resource-item">
+        <div class="resource-icon ink"></div>
+        <span id="res-ink">0</span>
+      </div>
+      <div class="resource-item">
+        <div class="resource-icon fruit"></div>
+        <span id="res-fruit">0</span>
+      </div>
+      <div id="mute-btn" style="margin-left:auto;cursor:pointer;pointer-events:auto;font-size:16px;opacity:0.5;" title="音效开关">🔊</div>
+    </div>
+  </div>
+
+  <!-- Scan Button -->
+  <div id="scan-btn" title="扫描作业">📷</div>
+  <div id="scan-btn-label">扫描作业</div>
+
+  <!-- Achievement Button -->
+  <div id="ach-btn" title="成就">🏆</div>
+
+  <!-- Debate Button -->
+  <div id="debate-btn" title="逻辑辩论">💬</div>
+
+  <!-- Parkour Button -->
+  <div id="pk-btn" title="星光回廊">✨</div>
+  <div id="pk-btn-label">星光回廊</div>
+
+  <!-- Camera Overlay -->
+  <div id="camera-overlay">
+    <video id="camera-feed" autoplay playsinline></video>
+    <div id="viewfinder">
+      <div class="corner corner-tl"></div>
+      <div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div>
+      <div class="corner corner-br"></div>
+    </div>
+    <div id="scan-pet">
+      <div id="scan-pet-avatar">🌟</div>
+      <div id="scan-pet-bubble">让我看看今天的作业~</div>
+    </div>
+    <div id="camera-hint">将作业本对准镜头</div>
+    <div id="capture-btn"><div id="capture-btn-inner"></div></div>
+    <div id="camera-close">✕</div>
+  </div>
+
+  <!-- Processing -->
+  <div id="scan-processing">
+    <div class="magic-ring"></div>
+    <div id="scan-processing-pet">🌟</div>
+    <p id="scan-processing-text">档案馆正在解析你的作业...</p>
+  </div>
+
+  <!-- Grade Panel -->
+  <div id="grade-panel">
+    <div id="grade-card">
+      <h2>✦ 作业录入 ✦</h2>
+      <div class="subtitle">告诉档案馆你今天完成了什么</div>
+      <div class="subject-grid">
+        <div class="subject-btn" data-subject="math_oral"><span class="emoji">🔢</span>数学口算</div>
+        <div class="subject-btn" data-subject="math_written"><span class="emoji">📐</span>数学大题</div>
+        <div class="subject-btn" data-subject="english"><span class="emoji">📖</span>英语阅读</div>
+        <div class="subject-btn" data-subject="chinese"><span class="emoji">🖋️</span>语文写词</div>
+      </div>
+      <div class="grade-row">
+        <label>✅ 做对题数</label>
+        <div class="grade-control">
+          <button class="g-dec" data-target="correct">−</button>
+          <span id="g-correct">5</span>
+          <button class="g-inc" data-target="correct">+</button>
+        </div>
+      </div>
+      <div class="grade-row">
+        <label>📝 总题数</label>
+        <div class="grade-control">
+          <button class="g-dec" data-target="total">−</button>
+          <span id="g-total">10</span>
+          <button class="g-inc" data-target="total">+</button>
+        </div>
+      </div>
+      <button id="grade-confirm">✦ 确认提交 ✦</button>
+    </div>
+  </div>
+
+  <!-- Result Panel -->
+  <div id="result-panel">
+    <div id="result-card">
+      <div class="big-icon">✨</div>
+      <h2 id="result-title">扫描完成！</h2>
+      <div class="result-sub" id="result-sub">奇迹档案馆已记录你的努力</div>
+      <div class="score" id="result-score">10/10</div>
+      <div class="score-label">正确率</div>
+      <div class="reward-list" id="reward-list"></div>
+      <button id="result-close">继续探索档案馆</button>
+    </div>
+  </div>
+
+  <!-- Resource Rain Canvas -->
+  <canvas id="rain-canvas"></canvas>
+
+  <div id="interact-prompt">✨ 点击宠物互动</div>
+  <div id="scene-title">— 奇迹档案馆 —</div>
+
+  <!-- ===== Achievement Notification ===== -->
+  <div id="ach-notify">
+    <div class="ach-notify-icon">🏆</div>
+    <div>
+      <div class="ach-notify-name">✦ 成就解锁 ✦</div>
+      <div class="ach-notify-desc"></div>
+    </div>
+  </div>
+
+  <!-- ===== Achievement Panel ===== -->
+  <div id="ach-panel">
+    <div id="ach-card">
+      <h2>🏆 成就殿堂</h2>
+      <div id="ach-count"></div>
+      <div id="ach-grid"></div>
+      <button id="ach-close" class="pet-close-btn">关闭</button>
+    </div>
+  </div>
+
+  <!-- ===== Parkour HUD ===== -->
+  <div id="pk-hud">
+    <div id="pk-hud-top">
+      <div class="pk-stat"><span class="pk-label">距离</span><span id="pk-score">0</span></div>
+      <div class="pk-stat"><span class="pk-label">速度</span><span id="pk-speed">80</span></div>
+      <div class="pk-stat"><span class="pk-label">⭐</span><span id="pk-coins">0</span></div>
+    </div>
+    <div id="pk-shield-bar">
+      <div id="pk-shield-fill"></div>
+    </div>
+    <div id="pk-controls-hint">
+      ← → 切换车道 &nbsp;|&nbsp; ↑ 跳跃 &nbsp;|&nbsp; ↓ 滑铲
+    </div>
+  </div>
+
+  <!-- ===== Parkour Floating Text ===== -->
+  <div id="pk-floating"></div>
+
+  <!-- ===== Parkour Game Over ===== -->
+  <div id="pk-gameover">
+    <div id="pk-go-card">
+      <div class="pk-go-icon">🌊</div>
+      <h2>星光回廊之旅结束</h2>
+      <div class="pk-go-grid">
+        <div><span class="pk-go-label">飞行距离</span><span class="pk-go-val" id="pk-go-score">0</span></div>
+        <div><span class="pk-go-label">收集星光</span><span class="pk-go-val" id="pk-go-coins">0</span></div>
+        <div><span class="pk-go-label">穿越门数</span><span class="pk-go-val" id="pk-go-gates">0</span></div>
+        <div><span class="pk-go-label">结算奖励</span><span class="pk-go-val gold" id="pk-go-reward">+0</span></div>
+      </div>
+      <button id="pk-restart">✦ 再次飞行 ✦</button>
+      <button id="pk-exit">返回档案馆</button>
+    </div>
+  </div>
+
+  <!-- ===== Pet Care Panel ===== -->
+  <div id="pet-panel">
+    <div id="pet-card">
+      <div id="pet-face">🌟</div>
+      <h2 id="pet-name">小星</h2>
+      <div class="pet-type" id="pet-stage-text">星光体</div>
+
+      <div class="pet-stats">
+        <div class="pet-stat-row">
+          <span class="pet-stat-label">😊 心情</span>
+          <span class="pet-stat-val" id="pet-mood-text">开心</span>
+          <div class="pet-bar"><div id="pet-mood-bar"></div></div>
+        </div>
+        <div class="pet-stat-row">
+          <span class="pet-stat-label">🍎 饱食度</span>
+          <span class="pet-stat-val" id="pet-sat-text">饱了</span>
+          <div class="pet-bar"><div id="pet-sat-bar"></div></div>
+        </div>
+        <div class="pet-stat-row">
+          <span class="pet-stat-label">💕 亲密度</span>
+          <span class="pet-stat-val" id="pet-bond-text">30/100</span>
+          <div class="pet-bar"><div id="pet-bond-bar"></div></div>
+        </div>
+        <div class="pet-stat-row">
+          <span class="pet-stat-label">✨ 进化</span>
+          <span class="pet-stat-val" id="pet-evo-text">0%</span>
+          <div class="pet-bar"><div id="pet-evo-bar"></div></div>
+        </div>
+      </div>
+
+      <div class="pet-actions">
+        <button id="pet-feed" class="pet-btn">
+          <span class="pet-btn-icon">🍎</span>
+          喂食 <small id="pet-fruit-count">0</small>
+        </button>
+        <button id="pet-stroke" class="pet-btn">
+          <span class="pet-btn-icon">🖐️</span>
+          抚摸
+        </button>
+        <button id="dye-open" class="pet-btn">
+          <span class="pet-btn-icon">🎨</span>
+          涂装
+        </button>
+      </div>
+
+      <div id="pet-evo-section">
+        <div class="pet-section-title">✦ 进化路线 ✦</div>
+        <div id="pet-evo-options"></div>
+      </div>
+
+      <div id="pet-evolved-info" style="display:none;">
+        <div class="pet-evolved-badge">✦ <span id="pet-evolved-name">已进化</span> ✦</div>
+      </div>
+
+      <button id="pet-close" class="pet-close-btn">关闭</button>
+    </div>
+  </div>
+
+  <!-- ===== Dye Panel ===== -->
+  <div id="dye-panel">
+    <div id="dye-card">
+      <h2>🎨 幻彩涂装</h2>
+      <div class="dye-subtitle">消耗幻彩墨水为小星染上梦幻色彩</div>
+      <div class="dye-ink-display">🖌️ <span id="dye-ink-count">0</span></div>
+      <div id="dye-grid"></div>
+      <button id="dye-close" class="pet-close-btn">关闭涂装</button>
+    </div>
+  </div>
+
+  <!-- ===== Debate Panel ===== -->
+  <div id="debate-panel">
+    <div id="debate-card">
+      <h2>✦ 逻辑辩论 ✦</h2>
+      <div class="debate-subtitle">小星又在说奇怪的话了...</div>
+      <div id="debate-question"></div>
+      <div id="debate-options"></div>
+      <div id="debate-feedback" style="display:none;">
+        <div id="debate-feedback-text"></div>
+        <div id="debate-rewards"></div>
+      </div>
+      <button id="debate-close" class="pet-close-btn">关闭</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
